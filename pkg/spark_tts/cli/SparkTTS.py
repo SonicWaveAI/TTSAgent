@@ -196,7 +196,7 @@ class SparkTTS:
         # Generate speech using the model
         generated_ids = self.model.generate(
             **model_inputs,
-            max_new_tokens=3000,
+            max_new_tokens=4000,
             do_sample=True,
             top_k=top_k,
             top_p=top_p,

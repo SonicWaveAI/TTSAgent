@@ -5,6 +5,9 @@ from ...config import Config
 import os
 from datetime import datetime
 import soundfile as sf
+from .segment import split_text_no_overlap, crossfade, fade_audio
+import numpy as np
+import threading
 
 
 def singleton(cls):
@@ -26,6 +29,7 @@ class TTSImpl:
     custom_model = ""
     result_path = ""
     with_clean = False
+    device_name = "mps:0"
 
     mm = dict()
 
@@ -36,16 +40,20 @@ class TTSImpl:
         self.custom_model = custom_model
         self.result_path = result_path
         self.with_clean = with_clean
+        self.infer_lock = threading.Lock()
 
         if not os.path.exists(self.model_path):
             raise FileNotFoundError(f"Model path {self.model_path} does not exist")
 
         if platform.system() == "Darwin" and torch.backends.mps.is_available():
             device = torch.device("mps:0")
+            self.device_name = "mps:0"
         elif torch.cuda.is_available():
             device = torch.device("cuda:0")
+            self.device_name = "cuda:0"
         else:
             device = torch.device("cpu")
+            self.device_name = "cpu"
         self.model = SparkTTS(self.model_path, device)
         self.mm = self.__init_default_models_map()
 
@@ -90,13 +98,47 @@ class TTSImpl:
             os.remove(file_path)
 
     def __gen(self, text, prompt_speech_path, save_path):
-        with torch.no_grad():
-            wav = self.model.inference(
-                text,
-                prompt_speech_path=prompt_speech_path,
-                prompt_text=None
-            )
-            sf.write(save_path, wav, samplerate=16000)
+        segments = split_text_no_overlap(text, max_len=180)
+
+        all_wavs = []
+
+        print("\n========== 文本分段预览 ==========")
+        for i, ctx, main in segments:
+            print(f"[段{i}] 上下文: {ctx}")
+            print(f"[段{i}] 主句  : {main}")
+        print("==================================\n")
+
+        for i, context_text, main_text in segments:
+            full_text = f"{context_text}{main_text}"
+            with self.infer_lock:
+                wav = self.model.inference(
+                    full_text,
+                    prompt_speech_path=prompt_speech_path,
+                    prompt_text=None,
+                    speed="moderate",
+                    temperature=0.5
+
+                )
+            wav_np = wav if isinstance(wav, np.ndarray) else wav.detach().cpu().numpy()
+
+            context_chars = len(context_text)
+            full_chars = len(full_text)
+            if context_chars > 0 and full_chars > 0:
+                cut_len = int(len(wav_np) * context_chars / full_chars)
+                wav_np = wav_np[cut_len:]
+
+            wav_np = fade_audio(wav_np, fade_len=1600)
+            all_wavs.append((i, wav_np))
+
+        all_wavs.sort(key=lambda x: x[0])
+
+        if not all_wavs:
+            return
+        full_wav = all_wavs[0][1]
+        for i in range(1, len(all_wavs)):
+            full_wav = crossfade(full_wav, all_wavs[i][1], fade_len=1600)
+
+        sf.write(save_path, full_wav, samplerate=16000)
 
     def check_model(self, model_type):
         return self.mm.get(model_type, None)
