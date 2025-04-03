@@ -24,17 +24,19 @@ def generate():
 
     text = data['content']
     model_type = data.get('model_type', None)
-    custom_id = data.get("id", None)
     method = data.get("method", "default")
+
     if method == "default":
+        if model_type is None:
+            model_type = "马云"
         if not tts_impl.check_model(model_type):
             return common.new_failed(404, 'model not exists')
         voice_path = tts_impl.generate_voice(model_type, text)
     else:
-        if custom_id is None:
+        if model_type is None:
             return common.new_failed(404, 'please upload voice')
         else:
-            voice_path = tts_impl.generate_voice_custom(custom_id, text)
+            voice_path = tts_impl.generate_voice_custom(model_type, text)
 
     return Response(
         tts_impl.read_clean(voice_path),

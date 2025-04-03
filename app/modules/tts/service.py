@@ -128,7 +128,7 @@ class TTSImpl:
                     prompt_speech_path=prompt_speech_path,
                     prompt_text=None,
                     speed="moderate",
-                    temperature=0.5
+                    temperature=0.3
 
                 )
             wav_np = wav if isinstance(wav, np.ndarray) else wav.detach().cpu().numpy()
