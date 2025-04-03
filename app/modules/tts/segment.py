@@ -36,13 +36,19 @@ def split_text_no_overlap(text, max_len=300):
 
     segments = []
     current_segment = ""
+
     for sentence in sentence_groups:
+        if len(sentence.strip()) == 0:
+            continue
         if len(current_segment) + len(sentence) <= max_len:
             current_segment += sentence
         else:
-            segments.append(current_segment)
+            if current_segment:
+                segments.append(current_segment)
             current_segment = sentence
+
     if current_segment:
         segments.append(current_segment)
 
-    return [(i, "", seg) for i, seg in enumerate(segments)]
+    return [(i, "", seg) for i, seg in enumerate(segments)] if segments else [(0, "", text)]
+

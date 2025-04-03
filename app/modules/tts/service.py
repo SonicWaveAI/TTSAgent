@@ -8,6 +8,7 @@ import soundfile as sf
 from .segment import split_text_no_overlap, crossfade, fade_audio
 import numpy as np
 import threading
+from pkg.util.sound_convert import m4a2wav
 
 
 def singleton(cls):
@@ -70,6 +71,12 @@ class TTSImpl:
         self.__gen(text, prompt_speech_path, save_path)
         return save_path
 
+    def generate_voice_custom(self, custom_id, text):
+        save_path = self.__generate_voice_file_path()
+        prompt_speech_path = self.__get_prompt_speech_path_custom(custom_id)
+        self.__gen(text, prompt_speech_path, save_path)
+        return save_path
+
     def __init_default_models_map(self):
         models_map = dict()
         for item in os.listdir(self.default_model):
@@ -83,6 +90,11 @@ class TTSImpl:
 
     def __get_prompt_speech_path(self, model_type):
         return self.mm.get(model_type, None)
+
+    def __get_prompt_speech_path_custom(self, custom_id):
+        sub_path = os.path.join(self.custom_model, custom_id)
+        audio_files = [f for f in os.listdir(sub_path) if f.endswith(".wav")]
+        return os.path.join(sub_path, audio_files[0])
 
     def __generate_voice_file_path(self):
         return os.path.join(self.result_path, f"{datetime.now().strftime('%Y%m%d%H%M%S')}.wav")
@@ -142,6 +154,18 @@ class TTSImpl:
 
     def check_model(self, model_type):
         return self.mm.get(model_type, None)
+
+    def upload_voice(self, voice_file):
+        unique_id = datetime.now().strftime('%Y%m%d%H%M%S')
+        voice_dir = os.path.join(self.custom_model, unique_id)
+        os.makedirs(voice_dir, exist_ok=True)
+        original_filename = voice_file.filename
+        file_ext = os.path.splitext(original_filename)[1]
+        voice_path = os.path.join(voice_dir, f'voice{file_ext}')
+        voice_file.save(voice_path)
+        if file_ext == ".m4a":
+            m4a2wav(voice_path, os.path.join(voice_dir, "voice.wav"))
+        return unique_id
 
 
 tts_impl = TTSImpl()
