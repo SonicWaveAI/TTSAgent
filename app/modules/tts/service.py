@@ -41,7 +41,6 @@ class TTSImpl:
         self.custom_model = custom_model
         self.result_path = result_path
         self.with_clean = with_clean
-        self.infer_lock = threading.Lock()
 
         if not os.path.exists(self.model_path):
             raise FileNotFoundError(f"Model path {self.model_path} does not exist")
@@ -122,7 +121,7 @@ class TTSImpl:
 
         for i, context_text, main_text in segments:
             full_text = f"{context_text}{main_text}"
-            with self.infer_lock:
+            with torch.no_grad():
                 wav = self.model.inference(
                     full_text,
                     prompt_speech_path=prompt_speech_path,
